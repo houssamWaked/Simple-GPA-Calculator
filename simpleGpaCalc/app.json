@@ -1,0 +1,48 @@
+{
+  "expo": {
+    "name": "Grade Point",
+    "slug": "grade-point",
+    "version": "1.0.2",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon2.png",
+    "scheme": "gradepoint",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0c1d14",
+        "foregroundImage": "./assets/images/icon2.png",
+        "backgroundImage": "./assets/images/icon2.png",
+        "monochromeImage": "./assets/images/icon2.png"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/icon2.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/icon2.png",
+          "imageWidth": 260,
+          "resizeMode": "contain",
+          "backgroundColor": "#0c1d14",
+          "dark": {
+            "backgroundColor": "#0c1d14"
+          }
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}
