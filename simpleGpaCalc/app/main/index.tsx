@@ -21,7 +21,6 @@ import {
 } from '../../src/constants/gpa';
 import { Theme, useTheme } from '../../src/context/ThemeContext';
 import { useCourses } from '../../src/context/CourseContext';
-import { useClearInterstitial } from '../../src/ads/useClearInterstitial';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const scaleChips: ScaleKey[] = ['four', 'five', 'percentage'];
@@ -263,7 +262,6 @@ export default function SemesterScreen() {
   );
   const { courses, addCourse, updateCourse, removeCourse, clearSemester } =
     useCourses();
-  const { showInterstitialIfReady } = useClearInterstitial();
   const [scale, setScale] = useState<ScaleKey>('four');
 
   const summary = useMemo(
@@ -302,7 +300,6 @@ export default function SemesterScreen() {
           onUpdateCourse={updateCourse}
           onAddCourse={addCourse}
           onClearSemester={() => {
-            showInterstitialIfReady();
             clearSemester();
           }}
         />

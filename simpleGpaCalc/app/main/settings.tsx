@@ -8,7 +8,6 @@ import {
 import { useMemo } from 'react';
 import { Theme, useTheme } from '../../src/context/ThemeContext';
 import { ThemePicker } from '../../src/components/ThemePicker';
-import { BannerAdView } from '../../src/ads/BannerAdView';
 
 export default function SettingsScreen() {
   const { theme } = useTheme();
@@ -28,7 +27,6 @@ export default function SettingsScreen() {
         <View style={styles.divider} />
         <ThemePicker />
       </View>
-      <BannerAdView />
     </ScrollView>
   );
 }

@@ -21,7 +21,6 @@ import {
 } from '../../src/constants/gpa';
 import { Theme, useTheme } from '../../src/context/ThemeContext';
 import { useCourses } from '../../src/context/CourseContext';
-import { useClearInterstitial } from '../../src/ads/useClearInterstitial';
 
 const scaleChips: ScaleKey[] = ['four', 'five', 'percentage'];
 
@@ -265,7 +264,6 @@ export default function CumulativeScreen() {
   );
   const { courses, addCourse, updateCourse, removeCourse, clearSemester } =
     useCourses();
-  const { showInterstitialIfReady } = useClearInterstitial();
   const [scale, setScale] = useState<ScaleKey>('four');
   const [currentGpa, setCurrentGpa] = useState('');
   const [currentCredits, setCurrentCredits] = useState('');
@@ -332,7 +330,6 @@ export default function CumulativeScreen() {
           onUpdateCourse={updateCourse}
           onAddCourse={addCourse}
           onClearSemester={() => {
-            showInterstitialIfReady();
             clearSemester();
           }}
         />
