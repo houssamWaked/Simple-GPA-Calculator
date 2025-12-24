@@ -9,37 +9,50 @@ import {
 } from 'react-native';
 import { Theme, useTheme } from '../../src/context/ThemeContext';
 
+/* ---------------- NAV TABS ---------------- */
+
 const NavTabs = () => {
   const pathname = usePathname();
   const { theme } = useTheme();
   const { width } = useWindowDimensions();
+
+  // 🚨 CRITICAL GUARD (prevents unmatched route in prod)
+  if (!pathname || !pathname.startsWith('/main')) {
+    return null;
+  }
+
   const uiScale = Math.max(0.85, Math.min(1.2, width / 390));
-  const styles = useMemo(() => createNavStyles(theme, uiScale), [theme, uiScale]);
+  const styles = useMemo(
+    () => createNavStyles(theme, uiScale),
+    [theme, uiScale]
+  );
 
   const isSemester = pathname === '/main' || pathname === '/main/index';
-  const isCumulative = pathname?.startsWith('/main/cumulative');
-  const isSettings = pathname?.startsWith('/main/settings');
+  const isCumulative = pathname.startsWith('/main/cumulative');
+  const isSettings = pathname.startsWith('/main/settings');
 
   return (
     <View style={styles.navContainer}>
       <Pressable
-        onPress={() => router.replace('/main')}
+        onPress={() => router.push('/main')}
         style={[styles.navButton, isSemester && styles.navButtonActive]}
       >
         <Text style={[styles.navText, isSemester && styles.navTextActive]}>
           Semester
         </Text>
       </Pressable>
+
       <Pressable
-        onPress={() => router.replace('/main/cumulative')}
+        onPress={() => router.push('/main/cumulative')}
         style={[styles.navButton, isCumulative && styles.navButtonActive]}
       >
         <Text style={[styles.navText, isCumulative && styles.navTextActive]}>
           Cumulative
         </Text>
       </Pressable>
+
       <Pressable
-        onPress={() => router.replace('/main/settings')}
+        onPress={() => router.push('/main/settings')}
         style={[styles.navButton, isSettings && styles.navButtonActive]}
       >
         <Text style={[styles.navText, isSettings && styles.navTextActive]}>
@@ -50,7 +63,9 @@ const NavTabs = () => {
   );
 };
 
-export default function RootLayout() {
+/* ---------------- MAIN LAYOUT ---------------- */
+
+export default function MainLayout() {
   const { theme } = useTheme();
 
   return (
@@ -63,6 +78,7 @@ export default function RootLayout() {
       }}
     >
       <NavTabs />
+
       <View style={{ flex: 1 }}>
         <Slot />
       </View>
@@ -70,8 +86,11 @@ export default function RootLayout() {
   );
 }
 
+/* ---------------- STYLES ---------------- */
+
 const createNavStyles = (theme: Theme, scale: number) => {
   const rs = (n: number) => Math.round(n * scale);
+
   return StyleSheet.create({
     navContainer: {
       flexDirection: 'row',
@@ -81,7 +100,7 @@ const createNavStyles = (theme: Theme, scale: number) => {
       borderColor: theme.navBorder,
       overflow: 'hidden',
       marginTop: rs(20),
-      marginBottom: rs(1),
+      marginBottom: rs(6),
     },
     navButton: {
       flex: 1,

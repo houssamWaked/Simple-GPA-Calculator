@@ -6,13 +6,7 @@ export default function RootLayout() {
   return (
     <ThemeProvider>
       <CourseProvider>
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            animation: 'none',
-          }}
-          initialRouteName="splash"
-        >
+        <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="splash" />
           <Stack.Screen name="main" />
         </Stack>
