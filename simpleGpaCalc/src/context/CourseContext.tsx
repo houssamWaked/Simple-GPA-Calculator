@@ -242,9 +242,9 @@ export const CourseProvider = ({ children }: { children: React.ReactNode }) => {
   }, [hydrated, planReady, plan, semesters, coursesBySemester, gradeScale]);
 
   const setCurrentSemester = useCallback((id: string) => {
-    if (!id || !semesters.find((s) => s.id === id)) return;
+    if (!id) return;
     setPlan((prev) => ({ ...prev, currentSemesterId: id }));
-  }, [semesters]);
+  }, []);
 
   const initializePlan = useCallback((startYear: number, startTerm: Term, programYears: number) => {
     const nextSemesters = generateSemesters(startYear, startTerm, programYears);

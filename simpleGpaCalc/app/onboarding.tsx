@@ -21,17 +21,46 @@ export default function OnboardingScreen() {
   const uiScale = Math.max(0.85, Math.min(1.2, width / 390));
   const styles = useMemo(() => createStyles(theme, uiScale), [theme, uiScale]);
   const router = useRouter();
-  const { initializePlan, planReady } = useCourses();
+  const { initializePlan, planReady, setCurrentSemester } = useCourses();
 
   const [startYear, setStartYear] = useState('');
   const [startTerm, setStartTerm] = useState<Term>('Fall');
   const [programYears, setProgramYears] = useState('4');
+  const [currentSemesterId, setCurrentSemesterId] = useState('');
 
   useEffect(() => {
     if (planReady) {
       router.replace('/main');
     }
   }, [planReady, router]);
+
+  const previewSemesters = useMemo(() => {
+    const yr = parseInt(startYear, 10);
+    const length = Math.max(1, parseInt(programYears, 10) || 1);
+    if (!Number.isFinite(yr) || yr < 1900) return [];
+    const order: Term[] = ['Fall', 'Spring', 'Summer'];
+    const startIdx = order.indexOf(startTerm);
+    if (startIdx === -1) return [];
+    const semesters: { id: string; label: string }[] = [];
+    let yearCursor = yr;
+    let prevTerm: Term = startTerm;
+    for (let i = 0; i < length * 3; i++) {
+      const term = order[(startIdx + i) % order.length];
+      if (i > 0 && prevTerm === 'Fall' && term === 'Spring') {
+        yearCursor += 1;
+      }
+      const id = `${yearCursor}-${term.toLowerCase()}`;
+      semesters.push({ id, label: `${term} ${yearCursor}` });
+      prevTerm = term;
+    }
+    return semesters;
+  }, [startYear, startTerm, programYears]);
+
+  useEffect(() => {
+    if (previewSemesters.length && !currentSemesterId) {
+      setCurrentSemesterId(previewSemesters[0].id);
+    }
+  }, [previewSemesters, currentSemesterId]);
 
   const onSubmit = () => {
     const numericYear = parseInt(startYear, 10);
@@ -40,7 +69,14 @@ export default function OnboardingScreen() {
       Alert.alert('Invalid start year', 'Please enter a valid year (e.g., 2024).');
       return;
     }
+    if (previewSemesters.length && !currentSemesterId) {
+      Alert.alert('Select current semester', 'Pick which semester you are in right now.');
+      return;
+    }
     initializePlan(numericYear, startTerm, numericProgramYears);
+    if (currentSemesterId) {
+      setCurrentSemester(currentSemesterId);
+    }
     router.replace('/main');
   };
 
@@ -54,7 +90,7 @@ export default function OnboardingScreen() {
         <Text style={styles.title}>Welcome to GradePoint</Text>
         <Text style={styles.subtitle}>
           Tell us when you started and how long your program lasts. We will build your semesters
-          automatically.
+          automatically. You can change these later in Settings to add courses to past semesters.
         </Text>
 
         <Text style={[styles.label, { marginTop: 8 }]}>Start Year</Text>
@@ -106,6 +142,43 @@ export default function OnboardingScreen() {
           placeholderTextColor={styles.placeholder.color}
           style={styles.input}
         />
+
+        {previewSemesters.length ? (
+          <>
+            <Text style={[styles.label, { marginTop: 12 }]}>Current Semester</Text>
+            <Text style={styles.helper}>
+              Choose where you are right now. You can change this later in Settings.
+            </Text>
+            <View style={styles.termRow}>
+              {previewSemesters.map((sem) => {
+                const active = currentSemesterId === sem.id;
+                return (
+                  <TouchableOpacity
+                    key={sem.id}
+                    activeOpacity={0.9}
+                    onPress={() => setCurrentSemesterId(sem.id)}
+                    style={[
+                      styles.termChip,
+                      {
+                        backgroundColor: active ? theme.segmentActiveBg : theme.segmentBg,
+                        borderColor: active ? theme.accent : theme.segmentBorder,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.termChipText,
+                        { color: active ? theme.accent : theme.navText },
+                      ]}
+                    >
+                      {sem.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </>
+        ) : null}
 
         <TouchableOpacity style={styles.primaryButton} activeOpacity={0.9} onPress={onSubmit}>
           <Text style={styles.primaryButtonText}>Create My Semesters</Text>
@@ -178,10 +251,16 @@ const createStyles = (theme: Theme, scale: number) => {
       paddingHorizontal: rs(14),
       borderRadius: rs(12),
       borderWidth: 1,
+      marginBottom: rs(6),
     },
     termChipText: {
       fontWeight: '800',
       fontSize: rs(14),
+    },
+    helper: {
+      color: theme.subtle,
+      marginBottom: rs(6),
+      fontSize: rs(13),
     },
     primaryButton: {
       marginTop: rs(18),
