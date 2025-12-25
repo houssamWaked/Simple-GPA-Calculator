@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ScrollView,
   StyleSheet,
@@ -21,6 +21,7 @@ import {
 } from '../../src/constants/gpa';
 import { Theme, useTheme } from '../../src/context/ThemeContext';
 import { useCourses } from '../../src/context/CourseContext';
+import { Switch } from 'react-native';
 
 const scaleChips: ScaleKey[] = ['four', 'five', 'percentage'];
 
@@ -262,16 +263,172 @@ export default function CumulativeScreen() {
     () => createStyles(theme, uiScale, width),
     [theme, uiScale, width]
   );
-  const { courses, addCourse, updateCourse, removeCourse, clearSemester } =
-    useCourses();
-  const [scale, setScale] = useState<ScaleKey>('four');
+  const {
+    courses,
+    addCourse,
+    addCourseWithData,
+    markCourseRetaken,
+    updateCourse,
+    removeCourse,
+    clearSemester,
+    completedCourses,
+    planReady,
+    semesters,
+    convertAllGrades,
+    gradeScale,
+    currentSemester,
+  } = useCourses();
+  const [scale, setScale] = useState<ScaleKey>(gradeScale);
   const [currentGpa, setCurrentGpa] = useState('');
   const [currentCredits, setCurrentCredits] = useState('');
+  const [showBaseline, setShowBaseline] = useState(false);
+  const [retakeGrades, setRetakeGrades] = useState<Record<string, string>>({});
+  const [retakeQuery, setRetakeQuery] = useState('');
+  const [selectedRetakes, setSelectedRetakes] = useState<string[]>([]);
+  const [appliedRetakes, setAppliedRetakes] = useState<string[]>([]);
+
+  useEffect(() => {
+    setScale(gradeScale);
+  }, [gradeScale]);
+
+  useEffect(() => {
+    convertAllGrades(scale);
+  }, [scale, convertAllGrades]);
+
+  const effectiveCompleted = useMemo(
+    () => (showBaseline ? [] : completedCourses),
+    [showBaseline, completedCourses]
+  );
 
   const cumulativeSummary = useMemo(
-    () => combineCumulative(currentGpa, currentCredits, courses, scale),
-    [currentGpa, currentCredits, courses, scale]
+    () =>
+      combineCumulative(currentGpa, currentCredits, courses, scale, effectiveCompleted),
+    [currentGpa, currentCredits, courses, scale, effectiveCompleted]
   );
+
+  const hasBaseline = parseFloat(currentCredits) > 0;
+  const hasCompleted = effectiveCompleted.length > 0;
+  const hasCurrent = courses.some((c) => parseFloat(c.credits) > 0);
+  const canShowCumulative = planReady && (hasBaseline || hasCompleted || hasCurrent);
+  const normalizeName = (name: string) => name.trim().toLowerCase();
+
+  const semesterMap = useMemo(
+    () =>
+      semesters.reduce<Record<string, string>>((acc, sem) => {
+        acc[sem.id] = sem.label;
+        return acc;
+      }, {}),
+    [semesters]
+  );
+
+  const semesterOrderMap = useMemo(
+    () =>
+      semesters.reduce<Record<string, number>>((acc, sem) => {
+        acc[sem.id] = sem.order ?? 0;
+        return acc;
+      }, {}),
+    [semesters]
+  );
+
+  const retakeOptions = useMemo(
+    () =>
+      Array.from(
+        effectiveCompleted
+          .filter((c) => parseFloat(c.credits) > 0)
+          .reduce((map, course) => {
+            const key = normalizeName(course.name || '');
+            const order = semesterOrderMap[course.semesterId ?? ''] ?? -1;
+            const existing = map.get(key);
+            if (!existing || order > existing.order) {
+              map.set(key, { course, order });
+            }
+            return map;
+          }, new Map<string, { course: Course; order: number }>())
+          .values()
+      ).map(({ course }) => ({
+        ...course,
+        displayLabel: `${course.name || 'Course'} | ${
+          semesterMap[course.semesterId ?? ''] || 'Past semester'
+        } | ${course.credits || '0'} cr | ${course.grade || 'No grade'}${
+          course.excludeFromCumulative ? ' | not in GPA' : ''
+        }`,
+      })),
+    [effectiveCompleted, semesterMap, semesterOrderMap]
+  );
+
+  const filteredRetakeOptions = useMemo(() => {
+    const term = retakeQuery.trim().toLowerCase();
+    if (!term) return [];
+    return retakeOptions.filter((opt) =>
+      opt.name.trim().toLowerCase().includes(term)
+    );
+  }, [retakeOptions, retakeQuery]);
+
+  const selectedRetakeOptions = useMemo(
+    () =>
+      retakeOptions.filter(
+        (opt) => selectedRetakes.includes(opt.id)
+      ),
+    [retakeOptions, selectedRetakes]
+  );
+
+  const confirmAddRetake = (optId: string) => {
+    const target = retakeOptions.find((o) => o.id === optId);
+    if (!target) return;
+    const newGrade = (retakeGrades[optId] || '').trim() || target.grade || '';
+    const message = 'This course will be added to this semester. Are you sure?';
+    const proceed = () => {
+      if (currentSemester) {
+        addCourseWithData({
+          name: target.name,
+          credits: target.credits,
+          grade: newGrade,
+          semesterId: currentSemester.id,
+        });
+        markCourseRetaken(target.name, currentSemester.id);
+        setAppliedRetakes((prev) => (prev.includes(optId) ? prev : [...prev, optId]));
+      }
+    };
+    if (Platform.OS === 'web') {
+      if (window.confirm(message)) proceed();
+      return;
+    }
+    Alert.alert('Confirm retake', message, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Add to semester', style: 'destructive', onPress: proceed },
+    ]);
+  };
+
+  const activeRetakes = useMemo(
+    () =>
+      selectedRetakeOptions
+        .map((opt) => ({ ...opt, newGrade: (retakeGrades[opt.id] || '').trim() }))
+        .filter((opt) => opt.newGrade.length),
+    [selectedRetakeOptions, retakeGrades]
+  );
+
+  const canComputeRetake = activeRetakes.length > 0;
+
+  const retakeSummary = useMemo(() => {
+    if (!canComputeRetake) return null;
+    const replacementMap = new Map(activeRetakes.map((r) => [r.id, r.newGrade]));
+    const replaced = effectiveCompleted.map((c) =>
+      replacementMap.has(c.id) ? { ...c, grade: replacementMap.get(c.id) || c.grade } : c
+    );
+    return combineCumulative(currentGpa, currentCredits, courses, scale, replaced);
+  }, [
+    canComputeRetake,
+    activeRetakes,
+    effectiveCompleted,
+    currentGpa,
+    currentCredits,
+    courses,
+    scale,
+  ]);
+
+  const retakeDelta = retakeSummary
+    ? Number((retakeSummary.gpa - cumulativeSummary.gpa).toFixed(scale === 'percentage' ? 1 : 3))
+    : 0;
 
   return (
     <ScrollView
@@ -289,31 +446,200 @@ export default function CumulativeScreen() {
         <View style={styles.sectionTitleRow}>
           <Ionicons name="time-outline" size={18} color={theme.accent} />
           <Text style={styles.sectionLabel}>Past Performance</Text>
-        </View>
-        <View style={styles.fieldRow}>
-          <View style={[styles.fieldBox, { marginRight: 12 }]}>
-            <Text style={styles.fieldCaption}>Current GPA</Text>
-            <TextInput
-              placeholder="e.g. 3.45"
-              placeholderTextColor={styles.placeholder.color}
-              keyboardType="numeric"
-              value={currentGpa}
-              onChangeText={setCurrentGpa}
-              style={styles.fieldInput}
-            />
-          </View>
-          <View style={styles.fieldBox}>
-            <Text style={styles.fieldCaption}>Credits Earned</Text>
-            <TextInput
-              placeholder="e.g. 60"
-              placeholderTextColor={styles.placeholder.color}
-              keyboardType="numeric"
-              value={currentCredits}
-              onChangeText={setCurrentCredits}
-              style={styles.fieldInput}
-            />
+          <View style={{ flex: 1 }} />
+          <View style={styles.toggleRow}>
+            <Text style={styles.toggleLabel}>Use baseline</Text>
+            <Switch value={showBaseline} onValueChange={(val) => {
+              if (!val) {
+                setCurrentGpa('');
+                setCurrentCredits('');
+              }
+              setShowBaseline(val);
+            }} />
           </View>
         </View>
+        {showBaseline ? (
+          <View style={styles.fieldRow}>
+            <View style={[styles.fieldBox, { marginRight: 12 }]}>
+              <Text style={styles.fieldCaption}>Current GPA</Text>
+              <TextInput
+                placeholder="e.g. 3.45"
+                placeholderTextColor={styles.placeholder.color}
+                keyboardType="numeric"
+                value={currentGpa}
+                onChangeText={setCurrentGpa}
+                style={styles.fieldInput}
+              />
+            </View>
+            <View style={styles.fieldBox}>
+              <Text style={styles.fieldCaption}>Credits Earned</Text>
+              <TextInput
+                placeholder="e.g. 60"
+                placeholderTextColor={styles.placeholder.color}
+                keyboardType="numeric"
+                value={currentCredits}
+                onChangeText={setCurrentCredits}
+                style={styles.fieldInput}
+              />
+            </View>
+          </View>
+        ) : (
+          <Text style={styles.helperText}>
+            Toggle on to enter previous GPA and credits (optional).
+          </Text>
+        )}
+      </View>
+
+      <View style={styles.sectionBlock}>
+        <View style={styles.sectionTitleRow}>
+          <Ionicons name="repeat-outline" size={18} color={theme.accent} />
+          <Text style={styles.sectionLabel}>Retake Impact</Text>
+        </View>
+
+        {retakeOptions.length ? (
+          <>
+            <Text style={styles.helperCaption}>
+              Enter new grades for any courses you plan to retake
+            </Text>
+            <TextInput
+              value={retakeQuery}
+              onChangeText={setRetakeQuery}
+              placeholder="Search course name"
+              placeholderTextColor={styles.placeholder.color}
+              style={styles.searchInput}
+            />
+            {retakeQuery.trim().length === 0 ? (
+              <Text style={styles.helperText}>Search to find a past course to retake.</Text>
+            ) : (
+              <View style={styles.searchResults}>
+                {filteredRetakeOptions.map((opt) => {
+                  const added = selectedRetakes.includes(opt.id);
+                  return (
+                    <View key={opt.id} style={styles.searchResultRow}>
+                      <Text style={styles.searchResultLabel}>{opt.displayLabel}</Text>
+                      <TouchableOpacity
+                        disabled={added}
+                        activeOpacity={0.85}
+                        onPress={() =>
+                          setSelectedRetakes((prev) =>
+                            prev.includes(opt.id) ? prev : [...prev, opt.id]
+                          )
+                        }
+                        style={[
+                          styles.addResultButton,
+                          added && { backgroundColor: theme.segmentBg, borderColor: theme.segmentBorder },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.addResultText,
+                            added && { color: theme.subtle },
+                          ]}
+                        >
+                          {added ? 'Added' : 'Add'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })}
+                {filteredRetakeOptions.length === 0 ? (
+                  <Text style={styles.helperText}>No matching courses.</Text>
+                ) : null}
+              </View>
+            )}
+
+              <View style={styles.retakeList}>
+                {selectedRetakeOptions.length === 0 ? (
+                  <Text style={styles.helperText}>
+                    Added courses will appear here to enter the new grade.
+                  </Text>
+                ) : (
+                selectedRetakeOptions.map((opt) => (
+                    <View key={opt.id} style={styles.retakeRow}>
+                  <View style={styles.retakeRowHeader}>
+                    <Text style={styles.retakeRowLabel}>
+                        {opt.displayLabel}
+                        {opt.excludeFromCumulative || appliedRetakes.includes(opt.id)
+                          ? ' (not in cumulative)'
+                          : ''}
+                      </Text>
+                      <View style={styles.retakeActions}>
+                        {appliedRetakes.includes(opt.id) ? (
+                          <View style={styles.retakeAppliedTag}>
+                            <Text style={styles.retakeAppliedText}>Applied</Text>
+                          </View>
+                        ) : (
+                          <TouchableOpacity
+                            onPress={() => confirmAddRetake(opt.id)}
+                            activeOpacity={0.85}
+                            style={styles.retakeActionButton}
+                          >
+                            <Text style={styles.retakeActionText}>Retake</Text>
+                          </TouchableOpacity>
+                        )}
+                        <TouchableOpacity
+                          onPress={() => {
+                            setSelectedRetakes((prev) => prev.filter((id) => id !== opt.id));
+                            setRetakeGrades((prev) => {
+                              const next = { ...prev };
+                              delete next[opt.id];
+                              return next;
+                            });
+                            setAppliedRetakes((prev) => prev.filter((id) => id !== opt.id));
+                          }}
+                          activeOpacity={0.8}
+                          style={styles.retakeRemoveButton}
+                        >
+                          <Text style={styles.retakeRemoveText}>Remove</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                    <TextInput
+                      value={retakeGrades[opt.id] ?? ''}
+                      onChangeText={(text) =>
+                        setRetakeGrades((prev) => ({ ...prev, [opt.id]: text }))
+                    }
+                    placeholder="e.g. 80 or B+ (leave blank if not retaking)"
+                    placeholderTextColor={styles.placeholder.color}
+                    style={styles.retakeInput}
+                  />
+                </View>
+                ))
+              )}
+            </View>
+
+            {retakeSummary && canComputeRetake ? (
+              <View style={styles.retakeResult}>
+                <View style={styles.retakeResultRow}>
+                  <Text style={styles.retakeLabel}>After retake</Text>
+                  <Text style={styles.retakeValue}>
+                    {retakeSummary.gpa.toFixed(scale === 'percentage' ? 1 : 2)}
+                  </Text>
+                </View>
+                <Text
+                  style={[
+                    styles.retakeDelta,
+                    { color: retakeDelta >= 0 ? theme.accent : theme.muted },
+                  ]}
+                >
+                  {retakeDelta >= 0 ? '+' : ''}
+                  {retakeDelta.toFixed(scale === 'percentage' ? 1 : 3)} change vs current plan
+                </Text>
+                <Text style={styles.retakeNote}>
+                  Assumes the new grade replaces the old attempt using the same credits.
+                </Text>
+              </View>
+            ) : (
+              <Text style={styles.helperText}>
+                Enter at least one new grade to see how retakes change your cumulative GPA.
+              </Text>
+            )}
+          </>
+        ) : (
+          <Text style={styles.helperText}>
+            Add courses in previous semesters to simulate how a retake changes your cumulative GPA.
+          </Text>
+        )}
       </View>
 
       <View style={styles.sectionBlock}>
@@ -338,9 +664,15 @@ export default function CumulativeScreen() {
       <View style={styles.footerCard}>
         <View>
           <Text style={styles.footerLabel}>New Cumulative GPA</Text>
-          <Text style={styles.footerValue}>
-            {cumulativeSummary.gpa.toFixed(scale === 'percentage' ? 1 : 2)}
-          </Text>
+          {canShowCumulative ? (
+            <Text style={styles.footerValue}>
+              {cumulativeSummary.gpa.toFixed(scale === 'percentage' ? 1 : 2)}
+            </Text>
+          ) : (
+            <Text style={styles.blockerText}>
+              Add prior semesters or enter earned credits + GPA to see your cumulative.
+            </Text>
+          )}
         </View>
       </View>
     </ScrollView>
@@ -440,6 +772,200 @@ const createStyles = (theme: Theme, scale: number, width: number) => {
       fontSize: rs(18),
       fontWeight: '800',
       paddingVertical: rs(6),
+    },
+    helperCaption: {
+      color: theme.subtle,
+      fontSize: rs(12),
+      fontWeight: '800',
+      letterSpacing: 0.5,
+      textTransform: 'uppercase',
+    },
+    searchResults: {
+      marginTop: rs(6),
+      gap: rs(8),
+    },
+    searchResultRow: {
+      borderRadius: rs(10),
+      borderWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: theme.card,
+      padding: rs(10),
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      justifyContent: 'space-between',
+      gap: rs(8),
+    },
+    searchResultLabel: {
+      flex: 1,
+      color: theme.text,
+      fontWeight: '700',
+      fontSize: rs(13),
+      flexWrap: 'wrap',
+    },
+    addResultButton: {
+      paddingHorizontal: rs(12),
+      paddingVertical: rs(8),
+      borderRadius: rs(8),
+      borderWidth: 1,
+      borderColor: theme.accent,
+      backgroundColor: theme.accent,
+    },
+    addResultText: {
+      color: theme.background,
+      fontWeight: '800',
+      fontSize: rs(13),
+    },
+    retakeActionButton: {
+      paddingHorizontal: rs(10),
+      paddingVertical: rs(6),
+      borderRadius: rs(8),
+      borderWidth: 1,
+      borderColor: theme.accent,
+      backgroundColor: theme.accent,
+    },
+    retakeActionText: {
+      color: theme.background,
+      fontWeight: '800',
+      fontSize: rs(12),
+    },
+    retakeAppliedTag: {
+      paddingHorizontal: rs(10),
+      paddingVertical: rs(6),
+      borderRadius: rs(8),
+      borderWidth: 1,
+      borderColor: theme.segmentBorder,
+      backgroundColor: theme.segmentBg,
+    },
+    retakeAppliedText: {
+      color: theme.subtle,
+      fontWeight: '800',
+      fontSize: rs(12),
+    },
+    helperText: {
+      color: theme.subtle,
+      fontSize: rs(13),
+      marginTop: rs(6),
+    },
+    searchInput: {
+      marginTop: rs(8),
+      borderWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: theme.input,
+      color: theme.text,
+      borderRadius: rs(10),
+      paddingHorizontal: rs(10),
+      paddingVertical: rs(10),
+      fontSize: rs(14),
+      fontWeight: '700',
+    },
+    searchInput: {
+      marginTop: rs(8),
+      borderWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: theme.input,
+      color: theme.text,
+      borderRadius: rs(10),
+      paddingHorizontal: rs(10),
+      paddingVertical: rs(10),
+      fontSize: rs(14),
+      fontWeight: '700',
+    },
+    retakeList: {
+      marginTop: rs(6),
+      gap: rs(10),
+    },
+    retakeRow: {
+      borderRadius: rs(12),
+      borderWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: theme.card,
+      padding: rs(10),
+      gap: rs(6),
+    },
+    retakeRowHeader: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      justifyContent: 'space-between',
+      gap: rs(8),
+    },
+    retakeInput: {
+      borderWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: theme.input,
+      color: theme.text,
+      borderRadius: rs(10),
+      paddingHorizontal: rs(10),
+      paddingVertical: rs(10),
+      fontSize: rs(14),
+      fontWeight: '700',
+    },
+    retakeRemoveButton: {
+      paddingHorizontal: rs(10),
+      paddingVertical: rs(6),
+      borderRadius: rs(8),
+      borderWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: theme.cardAlt,
+    },
+    retakeRemoveText: {
+      color: theme.subtle,
+      fontWeight: '800',
+      fontSize: rs(12),
+    },
+    retakeActions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: rs(6),
+      flexShrink: 0,
+    },
+    retakeRowLabel: {
+      color: theme.text,
+      fontWeight: '800',
+      fontSize: rs(13),
+      flex: 1,
+      flexWrap: 'wrap',
+    },
+    retakeResult: {
+      marginTop: rs(10),
+      backgroundColor: theme.card,
+      borderRadius: rs(12),
+      borderWidth: 1,
+      borderColor: theme.border,
+      padding: rs(12),
+      gap: rs(6),
+    },
+    retakeResultRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    retakeLabel: {
+      color: theme.subtle,
+      fontWeight: '800',
+      fontSize: rs(13),
+    },
+    retakeValue: {
+      color: theme.text,
+      fontWeight: '900',
+      fontSize: rs(22),
+    },
+    retakeDelta: {
+      fontWeight: '800',
+      fontSize: rs(14),
+    },
+    retakeNote: {
+      color: theme.muted,
+      fontSize: rs(12),
+    },
+    toggleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: rs(6),
+    },
+    toggleLabel: {
+      color: theme.subtle,
+      fontSize: rs(12),
+      fontWeight: '800',
     },
     courseCard: {
       backgroundColor: theme.courseCardBg,
@@ -612,6 +1138,11 @@ const createStyles = (theme: Theme, scale: number, width: number) => {
       fontSize: rs(32),
       fontWeight: '900',
       color: theme.text,
+    },
+    blockerText: {
+      color: theme.subtle,
+      fontSize: rs(14),
+      fontWeight: '700',
     },
   });
 };

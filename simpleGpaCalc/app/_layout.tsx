@@ -8,6 +8,7 @@ export default function RootLayout() {
       <CourseProvider>
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="splash" />
+          <Stack.Screen name="onboarding" />
           <Stack.Screen name="main" />
         </Stack>
       </CourseProvider>

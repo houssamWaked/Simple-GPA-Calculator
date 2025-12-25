@@ -1,5 +1,5 @@
 import { Slot, usePathname, router } from 'expo-router';
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import {
   Pressable,
   StyleSheet,
@@ -8,6 +8,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { Theme, useTheme } from '../../src/context/ThemeContext';
+import { useCourses } from '../../src/context/CourseContext';
 
 /* ---------------- NAV TABS ---------------- */
 
@@ -67,6 +68,13 @@ const NavTabs = () => {
 
 export default function MainLayout() {
   const { theme } = useTheme();
+  const { planReady, hydrated } = useCourses();
+
+  useEffect(() => {
+    if (hydrated && !planReady) {
+      router.replace('/onboarding');
+    }
+  }, [hydrated, planReady]);
 
   return (
     <View

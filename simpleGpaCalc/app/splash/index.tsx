@@ -10,6 +10,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useTheme } from '../../src/context/ThemeContext';
+import { useCourses } from '../../src/context/CourseContext';
 
 const { width } = Dimensions.get('window');
 
@@ -17,13 +18,15 @@ export default function SplashScreen() {
   const { theme } = useTheme();
   const gradientStart = theme.card;
   const gradientEnd = theme.background;
+  const { planReady, hydrated } = useCourses();
 
   useEffect(() => {
     const timeout = setTimeout(() => {
-      router.replace('/main');
-    }, 2500);
+      if (!hydrated) return;
+      router.replace(planReady ? '/main' : '/onboarding');
+    }, 1500);
     return () => clearTimeout(timeout);
-  }, []);
+  }, [planReady, hydrated]);
 
   return (
     <LinearGradient

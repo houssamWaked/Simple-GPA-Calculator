@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ScrollView,
   StyleSheet,
@@ -91,56 +91,56 @@ const CourseRow = ({
           onChangeText={(text) => onChange({ ...course, name: text })}
         />
         <View style={styles.inputRow}>
-          <View style={[styles.inputGroup, { flex: 1, marginRight: 12 }]}>
-            <Text style={styles.label}>Grade</Text>
-            {scale === 'percentage' ? (
-              <TextInput
-                placeholder="0 - 100"
-                placeholderTextColor={styles.placeholder.color}
-                keyboardType="numeric"
-                value={course.grade}
-                onChangeText={(text) => onChange({ ...course, grade: text })}
+        <View style={[styles.inputGroup, { flex: 1, marginRight: 12 }]}>
+          <Text style={styles.label}>Grade</Text>
+          {scale === 'percentage' ? (
+            <TextInput
+              placeholder="0 - 100"
+              placeholderTextColor={styles.placeholder.color}
+              keyboardType="numeric"
+              value={course.grade}
+              onChangeText={(text) => onChange({ ...course, grade: text })}
+              style={styles.select}
+            />
+          ) : (
+            <>
+              <TouchableOpacity
+                activeOpacity={0.9}
+                onPress={() => setOpenId(showDropdown ? null : course.id)}
                 style={styles.select}
-              />
-            ) : (
-              <>
-                <TouchableOpacity
-                  activeOpacity={0.9}
-                  onPress={() => setOpenId(showDropdown ? null : course.id)}
-                  style={styles.select}
-                >
-                  <Text style={styles.selectText}>
-                    {course.grade
-                      ? formatGradeLabel(course.grade, scale)
-                      : 'Select'}
-                  </Text>
-                  <Ionicons
-                    name={showDropdown ? 'chevron-up' : 'chevron-down'}
-                    size={16}
-                    color={styles.selectText.color as string}
-                  />
-                </TouchableOpacity>
-                {showDropdown ? (
-                  <View style={styles.dropdown}>
-                    {gradeOptions.map((grade) => (
-                      <TouchableOpacity
-                        key={grade}
-                        onPress={() => {
-                          onChange({ ...course, grade });
-                          setOpenId(null);
-                        }}
-                        style={styles.dropdownItem}
-                      >
-                        <Text style={styles.dropdownText}>
-                          {formatGradeLabel(grade, scale)}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                ) : null}
-              </>
-            )}
-          </View>
+              >
+                <Text style={styles.selectText}>
+                  {course.grade
+                    ? formatGradeLabel(course.grade, scale)
+                    : 'Select'}
+                </Text>
+                <Ionicons
+                  name={showDropdown ? 'chevron-up' : 'chevron-down'}
+                  size={16}
+                  color={styles.selectText.color as string}
+                />
+              </TouchableOpacity>
+              {showDropdown ? (
+                <View style={styles.dropdown}>
+                  {gradeOptions.map((grade) => (
+                    <TouchableOpacity
+                      key={grade}
+                      onPress={() => {
+                        onChange({ ...course, grade });
+                        setOpenId(null);
+                      }}
+                      style={styles.dropdownItem}
+                    >
+                      <Text style={styles.dropdownText}>
+                        {formatGradeLabel(grade, scale)}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              ) : null}
+            </>
+          )}
+        </View>
           <View style={[styles.inputGroup, styles.creditGroup]}>
             <Text style={styles.label}>Credits</Text>
             <View style={styles.creditRow}>
@@ -181,6 +181,7 @@ const CourseList = ({
   onUpdateCourse,
   onAddCourse,
   onClearSemester,
+  onDuplicateName,
 }: {
   courses: Course[];
   scale: ScaleKey;
@@ -189,6 +190,7 @@ const CourseList = ({
   onUpdateCourse: (next: Course) => void;
   onAddCourse: () => void;
   onClearSemester: () => void;
+  onDuplicateName: (next: Course) => void;
 }) => {
   const [openId, setOpenId] = useState<string | null>(null);
   const confirmClear = () => {
@@ -216,7 +218,19 @@ const CourseList = ({
         <CourseRow
           key={course.id}
           course={course}
-          onChange={onUpdateCourse}
+          onChange={(next) => {
+            const normalized = next.name.trim().toLowerCase();
+            const duplicate =
+              normalized.length > 0 &&
+              courses.some(
+                (c) => c.id !== next.id && c.name.trim().toLowerCase() === normalized
+              );
+            if (duplicate) {
+              onDuplicateName(next);
+              return;
+            }
+            onUpdateCourse(next);
+          }}
           onRemove={onRemoveCourse}
           openId={openId}
           setOpenId={setOpenId}
@@ -260,14 +274,49 @@ export default function SemesterScreen() {
     () => createStyles(theme, uiScale, width),
     [theme, uiScale, width]
   );
-  const { courses, addCourse, updateCourse, removeCourse, clearSemester } =
-    useCourses();
-  const [scale, setScale] = useState<ScaleKey>('four');
+  const {
+    courses,
+    addCourse,
+    updateCourse,
+    removeCourse,
+    clearSemester,
+    currentSemester,
+    convertAllGrades,
+    gradeScale,
+  } = useCourses();
+  const [scale, setScale] = useState<ScaleKey>(gradeScale);
+
+  useEffect(() => {
+    setScale(gradeScale);
+  }, [gradeScale]);
+
+  useEffect(() => {
+    convertAllGrades(scale);
+  }, [scale, convertAllGrades]);
 
   const summary = useMemo(
     () => summarizeCourses(courses, scale),
     [courses, scale]
   );
+
+  const handleDuplicateName = (next: Course) => {
+    const message =
+      'You already have a course with this name in the semester. Are you retaking it or did you add it by mistake?';
+    if (Platform.OS === 'web') {
+      const keep = window.confirm(`${message}\n\nOK = Keep as retake\nCancel = Remove duplicate`);
+      if (keep) {
+        updateCourse(next);
+      } else {
+        updateCourse({ ...next, name: '' });
+      }
+      return;
+    }
+    Alert.alert('Duplicate course name', message, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Remove duplicate', style: 'destructive', onPress: () => updateCourse({ ...next, name: '' }) },
+      { text: 'Keep as retake', onPress: () => updateCourse(next) },
+    ]);
+  };
 
   return (
     <ScrollView
@@ -289,7 +338,9 @@ export default function SemesterScreen() {
 
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Courses</Text>
-          <Text style={styles.sectionMeta}>Fall 2024</Text>
+          <Text style={styles.sectionMeta}>
+            {currentSemester ? currentSemester.label : 'Select a semester'}
+          </Text>
         </View>
 
         <CourseList
@@ -302,6 +353,7 @@ export default function SemesterScreen() {
           onClearSemester={() => {
             clearSemester();
           }}
+          onDuplicateName={handleDuplicateName}
         />
       </View>
     </ScrollView>

@@ -17,6 +17,7 @@ export type Course = {
   grade: string;
   credits: string;
   semesterId?: string;
+  excludeFromCumulative?: boolean;
 };
 
 export const gradeOptions: Grade[] = [
@@ -71,11 +72,103 @@ export type Summary = {
   baseGpa: number;
 };
 
+const clamp = (value: number, min: number, max: number) =>
+  Math.min(max, Math.max(min, value));
+
+const parseNumeric = (value: string) => {
+  const parsed = parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const closestLetter = (
+  value: number,
+  scale: Exclude<ScaleKey, "percentage">,
+): Grade => {
+  const entries = Object.entries(gradePoints[scale]) as [Grade, number][];
+  let best: Grade = "F";
+  let bestDiff = Number.POSITIVE_INFINITY;
+
+  entries.forEach(([letter, point]) => {
+    const diff = Math.abs(value - point);
+    if (diff < bestDiff || (diff === bestDiff && point > gradePoints[scale][best])) {
+      bestDiff = diff;
+      best = letter;
+    }
+  });
+
+  return best;
+};
+
+const letterToPercent = (grade: string, sourceScale: ScaleKey): number | null => {
+  const pointScale = sourceScale === "five" ? "five" : "four";
+  const letterValue = gradePoints[pointScale as Exclude<ScaleKey, "percentage">][
+    grade as Grade
+  ];
+  if (letterValue === undefined) return null;
+  const pct = (letterValue / scaleMeta[pointScale].max) * 100;
+  return clamp(pct, 0, 100);
+};
+
+const gradeToPercent = (grade: string, sourceScale: ScaleKey): number | null => {
+  const numeric = parseNumeric(grade);
+  if (numeric !== null) {
+    if (sourceScale === "percentage") return clamp(numeric, 0, 100);
+    const pct = (numeric / scaleMeta[sourceScale].max) * 100;
+    return clamp(pct, 0, 100);
+  }
+  return letterToPercent(grade, sourceScale);
+};
+
+const isLetter = (grade: string) => gradeOptions.includes(grade as Grade);
+
+export const convertGradeBetweenScales = (
+  grade: string,
+  fromScale: ScaleKey,
+  toScale: ScaleKey,
+): string => {
+  if (!grade || fromScale === toScale) return grade;
+  if (isLetter(grade)) {
+    if (toScale !== "percentage") return grade;
+    const percentFromLetter = gradeToPercent(grade, fromScale);
+    return percentFromLetter === null
+      ? grade
+      : Number(percentFromLetter.toFixed(1)).toString();
+  }
+
+  const percent = gradeToPercent(grade, fromScale);
+  if (percent === null) return grade;
+
+  if (toScale === "percentage") {
+    return Number(percent.toFixed(1)).toString();
+  }
+
+  const target = (percent / 100) * scaleMeta[toScale].max;
+  return Number(target.toFixed(2)).toString();
+};
+
 export const formatGradeLabel = (grade: string, scale: ScaleKey) => {
-  if (scale === "percentage") return grade;
-  const value = gradePoints[scale as Exclude<ScaleKey, "percentage">][grade as Grade];
-  if (value === undefined) return grade;
-  return `${grade} (${value.toFixed(1)})`;
+  if (!grade) return "Select";
+
+  const numeric = parseNumeric(grade);
+  if (scale === "percentage") {
+    if (numeric !== null) return clamp(numeric, 0, 100).toFixed(1);
+    return grade;
+  }
+
+  const pointScale = scale === "five" ? "five" : "four";
+  const value = gradePoints[pointScale as Exclude<ScaleKey, "percentage">][grade as Grade];
+
+  if (value !== undefined) {
+    return `${grade} (${value.toFixed(1)})`;
+  }
+
+  if (numeric !== null) {
+    const clamped = clamp(numeric, 0, scaleMeta[scale].max);
+    const letter = closestLetter(clamped, pointScale as Exclude<ScaleKey, "percentage">);
+    return `${clamped.toFixed(2)} (${letter})`;
+  }
+
+  return grade;
 };
 
 export const summarizeCourses = (courses: Course[], scale: ScaleKey): Summary => {
@@ -86,6 +179,7 @@ export const summarizeCourses = (courses: Course[], scale: ScaleKey): Summary =>
   let quality = 0;
 
   courses.forEach((course) => {
+    if (course.excludeFromCumulative) return;
     const creditValue = Math.max(0, parseFloat(course.credits));
     if (!Number.isFinite(creditValue) || creditValue <= 0) return;
 
@@ -106,7 +200,8 @@ export const summarizeCourses = (courses: Course[], scale: ScaleKey): Summary =>
       }
     } else {
       if (Number.isFinite(numericGrade)) {
-        const scaled = (Math.min(100, Math.max(0, numericGrade)) / 100) * max;
+        const clamped = clamp(numericGrade, 0, 100);
+        const scaled = clamped > max ? (clamped / 100) * max : clamp(clamped, 0, max);
         credits += creditValue;
         quality += scaled * creditValue;
         return;
@@ -136,28 +231,30 @@ export const summarizeCourses = (courses: Course[], scale: ScaleKey): Summary =>
 export const combineCumulative = (
   currentGpa: string,
   currentCredits: string,
-  courses: Course[],
+  currentCourses: Course[],
   scale: ScaleKey,
+  completedCourses: Course[] = [],
 ) => {
-  const prevGpa = parseFloat(currentGpa) || 0;
-  const prevCredits = parseFloat(currentCredits) || 0;
-  const semester = summarizeCourses(courses, scale);
+  const baselineGpa = parseFloat(currentGpa) || 0;
+  const baselineCredits = parseFloat(currentCredits) || 0;
   const max = scaleMeta[scale].max;
-  const normalizedPrev =
+  const normalizedBaseline =
     scale === "percentage"
-      ? Math.min(100, Math.max(0, prevGpa))
-      : Math.min(max, Math.max(0, prevGpa));
+      ? Math.min(100, Math.max(0, baselineGpa))
+      : Math.min(max, Math.max(0, baselineGpa));
 
-  const totalCredits = prevCredits + semester.credits;
+  const prior = summarizeCourses(completedCourses, scale);
+  const semester = summarizeCourses(currentCourses, scale);
 
+  const totalCredits = baselineCredits + prior.credits + semester.credits;
   const combinedBase = totalCredits
-    ? (normalizedPrev * prevCredits + semester.baseGpa * semester.credits) / totalCredits
-    : semester.baseGpa;
+    ? (normalizedBaseline * baselineCredits +
+        prior.baseGpa * prior.credits +
+        semester.baseGpa * semester.credits) /
+      totalCredits
+    : 0;
 
-  const display =
-    scale === "percentage"
-      ? combinedBase
-      : combinedBase;
+  const display = scale === "percentage" ? combinedBase : combinedBase;
 
   return {
     totalCredits: Number(totalCredits.toFixed(1)),
