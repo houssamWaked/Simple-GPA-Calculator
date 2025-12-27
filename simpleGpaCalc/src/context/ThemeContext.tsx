@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { Appearance } from "react-native";
+import { Appearance, Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as SystemUI from "expo-system-ui";
 
 export type ThemeMode =
   | "system"
@@ -230,6 +231,7 @@ type ThemeContextValue = {
   mode: ThemeMode;
   setTheme: (mode: ThemeMode) => void;
   modes: ThemeMode[];
+  isDark: boolean;
 };
 
 export const availableThemes = ["system", ...Object.keys(palettes)] as ThemeMode[];
@@ -240,6 +242,7 @@ const ThemeContext = createContext<ThemeContextValue>({
   mode: "dark",
   setTheme: () => {},
   modes: availableThemes,
+  isDark: true,
 });
 
 export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
@@ -284,16 +287,28 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
       ? palettes[systemMode] ?? palettes.dark
       : palettes[mode] ?? palettes.dark;
 
+  const effectiveMode: "light" | "dark" =
+    mode === "system" ? systemMode : mode === "light" ? "light" : "dark";
+
+  // Keep system UI (Android nav/status areas, root background) in sync with theme
+  useEffect(() => {
+    // Root background color (affects Android system bars w/ edge-to-edge)
+    SystemUI.setBackgroundColorAsync(resolvedPalette.background).catch(() => {
+      // ignore failures
+    });
+  }, [resolvedPalette.background]);
+
   const value = useMemo(
     () => ({
       mode,
       modes: availableThemes,
       theme: resolvedPalette,
+      isDark: effectiveMode === "dark",
       setTheme: (newMode: ThemeMode) => {
         persistMode(newMode);
       },
     }),
-    [mode, resolvedPalette],
+    [mode, resolvedPalette, effectiveMode],
   );
 
   return (

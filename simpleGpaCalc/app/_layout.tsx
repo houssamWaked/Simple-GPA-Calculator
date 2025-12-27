@@ -1,7 +1,9 @@
 import { Stack } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { ThemeProvider } from '../src/context/ThemeContext';
+import { useTheme } from '../src/context/ThemeContext';
 import { CourseProvider } from '../src/context/CourseContext';
 
 export default function RootLayout() {
@@ -11,6 +13,7 @@ export default function RootLayout() {
         <CourseProvider>
           <SafeAreaProvider>
             <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom']}>
+              <ThemedStatusBar />
               <Stack
                 screenOptions={{
                   headerShown: false,
@@ -29,3 +32,13 @@ export default function RootLayout() {
     </GestureHandlerRootView>
   );
 }
+
+const ThemedStatusBar = () => {
+  const { theme, isDark } = useTheme();
+  return (
+    <StatusBar
+      style={isDark ? 'light' : 'dark'}
+      backgroundColor={theme.background}
+    />
+  );
+};
