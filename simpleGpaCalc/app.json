@@ -24,10 +24,6 @@
       "package": "com.houssamwaked.gradepoint",
       "softwareKeyboardLayoutMode": "resize"
     },
-    "web": {
-      "output": "static",
-      "favicon": "./assets/images/icon2.png"
-    },
     "plugins": [
       "expo-router",
       [

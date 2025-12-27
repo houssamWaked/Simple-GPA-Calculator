@@ -11,7 +11,7 @@ import {
   useWindowDimensions,
   KeyboardAvoidingView,
 } from 'react-native';
-import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import {
   Course,
   ScaleKey,
@@ -651,7 +651,7 @@ export default function CumulativeScreen() {
 
       <View style={styles.sectionBlock}>
         <View style={styles.sectionTitleRow}>
-          <MaterialIcons name="school" size={18} color={theme.accent} />
+          <Ionicons name="school-outline" size={18} color={theme.accent} />
           <Text style={styles.sectionLabel}>This Semester</Text>
         </View>
 

@@ -21,9 +21,8 @@ export default function RootLayout() {
                   fullScreenGestureEnabled: false,
                 }}
               >
-                <Stack.Screen name="splash" options={{ gestureEnabled: false }} />
-                <Stack.Screen name="onboarding" options={{ gestureEnabled: false }} />
-                <Stack.Screen name="main" />
+              <Stack.Screen name="onboarding" options={{ gestureEnabled: false }} />
+              <Stack.Screen name="main" />
               </Stack>
             </SafeAreaView>
           </SafeAreaProvider>
