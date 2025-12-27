@@ -21,7 +21,8 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.houssamwaked.gradepoint"
+      "package": "com.houssamwaked.gradepoint",
+      "softwareKeyboardLayoutMode": "resize"
     },
     "web": {
       "output": "static",

@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { Theme, useTheme } from '../../src/context/ThemeContext';
 import { useCourses } from '../../src/context/CourseContext';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 /* ---------------- NAV TABS ---------------- */
 
@@ -77,20 +78,20 @@ export default function MainLayout() {
   }, [hydrated, planReady]);
 
   return (
-    <View
-      style={{
-        flex: 1,
-        backgroundColor: theme.background,
-        paddingHorizontal: 12,
-        paddingTop: 12,
-      }}
-    >
-      <NavTabs />
-
-      <View style={{ flex: 1 }}>
-        <Slot />
+    <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }} edges={['top', 'bottom']}>
+      <View
+        style={{
+          flex: 1,
+          paddingHorizontal: 12,
+          paddingTop: 12,
+        }}
+      >
+        <NavTabs />
+        <View style={{ flex: 1 }}>
+          <Slot />
+        </View>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 

@@ -9,6 +9,7 @@ import {
   Alert,
   View,
   useWindowDimensions,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import {
@@ -431,11 +432,17 @@ export default function CumulativeScreen() {
     : 0;
 
   return (
-    <ScrollView
-      style={styles.screen}
-      contentContainerStyle={styles.content}
-      showsVerticalScrollIndicator={false}
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={0}
     >
+      <ScrollView
+        style={styles.screen}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
       <View style={styles.headerRow}>
         <Text style={styles.title}>Cumulative GPA</Text>
       </View>
@@ -675,7 +682,8 @@ export default function CumulativeScreen() {
           )}
         </View>
       </View>
-    </ScrollView>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 

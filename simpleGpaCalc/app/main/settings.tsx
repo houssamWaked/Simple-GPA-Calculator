@@ -7,6 +7,8 @@ import {
   View,
   useWindowDimensions,
   Alert,
+  Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { useEffect, useMemo, useState } from 'react';
 import { Theme, useTheme } from '../../src/context/ThemeContext';
@@ -63,11 +65,17 @@ export default function SettingsScreen() {
   };
 
   return (
-    <ScrollView
-      style={styles.screen}
-      contentContainerStyle={styles.content}
-      showsVerticalScrollIndicator={false}
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={0}
     >
+      <ScrollView
+        style={styles.screen}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
       <View style={styles.card}>
         <Text style={styles.title}>Academic Plan</Text>
         <Text style={styles.subtle}>
@@ -180,7 +188,8 @@ export default function SettingsScreen() {
         <View style={styles.divider} />
         <ThemePicker />
       </View>
-    </ScrollView>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
