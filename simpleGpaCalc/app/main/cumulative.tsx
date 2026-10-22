@@ -866,18 +866,6 @@ const createStyles = (theme: Theme, scale: number, width: number) => {
       fontSize: rs(14),
       fontWeight: '700',
     },
-    searchInput: {
-      marginTop: rs(8),
-      borderWidth: 1,
-      borderColor: theme.border,
-      backgroundColor: theme.input,
-      color: theme.text,
-      borderRadius: rs(10),
-      paddingHorizontal: rs(10),
-      paddingVertical: rs(10),
-      fontSize: rs(14),
-      fontWeight: '700',
-    },
     retakeList: {
       marginTop: rs(6),
       gap: rs(10),

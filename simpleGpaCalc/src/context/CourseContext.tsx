@@ -33,6 +33,7 @@ type CourseContextValue = {
   semesters: Semester[];
   currentSemester: Semester | null;
   courses: Course[];
+  coursesBySemester: Record<string, Course[]>;
   completedCourses: Course[];
   gradeScale: ScaleKey;
   setCurrentSemester: (id: string) => void;
@@ -45,6 +46,7 @@ type CourseContextValue = {
   updateCourse: (next: Course) => void;
   removeCourse: (id: string, semesterId?: string) => void;
   clearSemester: (semesterId?: string) => void;
+  replaceSemesterCourses: (semesterId: string, courses: Partial<Course>[]) => void;
 };
 
 const STORAGE_KEY = "courses:v2";
@@ -58,6 +60,7 @@ const CourseContext = createContext<CourseContextValue>({
   semesters: [],
   currentSemester: null,
   courses: [],
+  coursesBySemester: {},
   completedCourses: [],
   gradeScale: "four",
   setCurrentSemester: () => {},
@@ -70,6 +73,7 @@ const CourseContext = createContext<CourseContextValue>({
   updateCourse: () => {},
   removeCourse: () => {},
   clearSemester: () => {},
+  replaceSemesterCourses: () => {},
 });
 
 const makeSemesterId = (year: number, term: Term) => `${year}-${term.toLowerCase()}`;
@@ -199,8 +203,8 @@ export const CourseProvider = ({ children }: { children: React.ReactNode }) => {
           currentSemesterId: makeSemesterId(year, "Fall"),
         };
         const nextSemesters = generateSemesters(
-          fallbackPlan.startYear,
-          fallbackPlan.startTerm,
+          year,
+          "Fall",
           fallbackPlan.programYears,
         );
         const mapped: Record<string, Course[]> = {};
@@ -353,6 +357,14 @@ export const CourseProvider = ({ children }: { children: React.ReactNode }) => {
     }));
   };
 
+  const replaceSemesterCourses = (semesterId: string, imported: Partial<Course>[]) => {
+    if (!semesterId) return;
+    const nextCourses = imported.length
+      ? imported.map((course) => ({ ...blankCourse(semesterId), ...course, semesterId }))
+      : [blankCourse(semesterId)];
+    setCoursesBySemester((prev) => ({ ...prev, [semesterId]: nextCourses }));
+  };
+
   const markCourseRetaken = (courseName: string, currentSemesterId: string | null) => {
     const key = normalizeName(courseName);
     if (!key) return;
@@ -407,6 +419,7 @@ export const CourseProvider = ({ children }: { children: React.ReactNode }) => {
         semesters,
         currentSemester,
     courses,
+        coursesBySemester,
     completedCourses,
     setCurrentSemester,
     initializePlan,
@@ -418,6 +431,7 @@ export const CourseProvider = ({ children }: { children: React.ReactNode }) => {
     updateCourse,
     removeCourse,
         clearSemester,
+        replaceSemesterCourses,
         gradeScale,
       }}
     >

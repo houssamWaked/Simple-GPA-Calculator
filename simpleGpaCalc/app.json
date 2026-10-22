@@ -2,7 +2,7 @@
   "expo": {
     "name": "Grade Point",
     "slug": "grade-point",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "orientation": "portrait",
     "icon": "./assets/images/icon2.png",
     "scheme": "gradepoint",
@@ -12,7 +12,7 @@
       "supportsTablet": true
     },
     "android": {
-      "versionCode": 1,
+      "versionCode": 2,
       "adaptiveIcon": {
         "backgroundColor": "#0c1d14",
         "foregroundImage": "./assets/images/icon2.png",

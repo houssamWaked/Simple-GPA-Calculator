@@ -25,9 +25,6 @@ export default function SettingsScreen() {
   const {
     plan,
     planReady,
-    semesters,
-    currentSemester,
-    setCurrentSemester,
     initializePlan,
     updatePlan,
   } = useCourses();
@@ -37,16 +34,11 @@ export default function SettingsScreen() {
     plan.programYears ? String(plan.programYears) : '4'
   );
   const [startTerm, setStartTerm] = useState<Term>(plan.startTerm ?? 'Fall');
-  const [selectedSemesterId, setSelectedSemesterId] = useState(
-    plan.currentSemesterId ?? semesters[0]?.id ?? ''
-  );
-
   useEffect(() => {
     setStartYear(plan.startYear ? String(plan.startYear) : '');
     setProgramYears(plan.programYears ? String(plan.programYears) : '4');
     setStartTerm(plan.startTerm ?? 'Fall');
-    setSelectedSemesterId(plan.currentSemesterId ?? semesters[0]?.id ?? '');
-  }, [plan.startYear, plan.startTerm, plan.programYears, plan.currentSemesterId, semesters]);
+  }, [plan.startYear, plan.startTerm, plan.programYears]);
 
   const onSavePlan = () => {
     const numericYear = parseInt(startYear, 10);
@@ -58,7 +50,6 @@ export default function SettingsScreen() {
 
     if (planReady) {
       updatePlan(numericYear, startTerm, numericProgramYears);
-      if (selectedSemesterId) setCurrentSemester(selectedSemesterId);
     } else {
       initializePlan(numericYear, startTerm, numericProgramYears);
     }
@@ -132,48 +123,6 @@ export default function SettingsScreen() {
           placeholderTextColor={styles.placeholder.color}
           style={styles.input}
         />
-
-        {planReady ? (
-          <>
-            <Text style={[styles.fieldLabel, { marginTop: 12 }]}>Current Semester</Text>
-            <View style={styles.termRow}>
-              {semesters.map((semester) => {
-                const active = selectedSemesterId === semester.id;
-                return (
-                  <TouchableOpacity
-                    key={semester.id}
-                    activeOpacity={0.9}
-                    onPress={() => {
-                      setSelectedSemesterId(semester.id);
-                      setCurrentSemester(semester.id);
-                    }}
-                    style={[
-                      styles.semChip,
-                      {
-                        backgroundColor: active ? theme.segmentActiveBg : theme.segmentBg,
-                        borderColor: active ? theme.accent : theme.segmentBorder,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.semChipText,
-                        { color: active ? theme.accent : theme.navText },
-                      ]}
-                    >
-                      {semester.label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-            {currentSemester ? (
-              <Text style={styles.helperText}>
-                Editing courses applies to {currentSemester.label}.
-              </Text>
-            ) : null}
-          </>
-        ) : null}
 
         <TouchableOpacity style={styles.saveButton} activeOpacity={0.9} onPress={onSavePlan}>
           <Text style={styles.saveButtonText}>
